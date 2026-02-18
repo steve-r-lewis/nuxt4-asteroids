@@ -44,7 +44,8 @@ export default defineNuxtConfig({
    * ------------------------------------------------------------------------------
    */
   extends: [
-    "@monorepo/ui-library"
+    "@monorepo/ui-library",
+    "@monorepo/game-asteroids"
   ],
 
   /**

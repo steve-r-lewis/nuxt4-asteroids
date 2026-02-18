@@ -35,7 +35,6 @@
  * ================================================================================
  */
 
-import AsteroidsGame from "../components/AsteroidsGame.vue";
 </script>
 
 <template>
