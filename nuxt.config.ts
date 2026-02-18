@@ -264,6 +264,14 @@ export default defineNuxtConfig({
     prerender: {
       crawlLinks: true,
       failOnError: false,
+    },
+
+    // ... existing nitro config ...
+    storage: {
+      'scores': {
+        driver: 'fs',
+        base: './.data/scores'
+      }
     }
   },
 
