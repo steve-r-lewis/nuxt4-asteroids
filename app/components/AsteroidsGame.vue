@@ -62,10 +62,8 @@ const gameOver = ref(false)
 const level = ref(1)
 
 // Game Objects
-// Initialize with a default or undefined, handled in initLevel
 let ship: Entity & { blinkNum: number; blinkTime: number; canShoot: boolean; lasers: any[] }
 let asteroids: any[] = []
-let lastTime = 0
 
 // Input State
 const keys = {
@@ -201,22 +199,22 @@ function update(time: number) {
     ship.vx += SHIP_THRUST * Math.cos(ship.angle) / FPS
     ship.vy -= SHIP_THRUST * Math.sin(ship.angle) / FPS
 
-    // Draw Thruster
+    // Draw Thruster (Emerging from the cone)
     ctx.fillStyle = 'red'
     ctx.strokeStyle = 'yellow'
     ctx.lineWidth = 2
     ctx.beginPath()
-    ctx.moveTo(
-      ship.x - ship.radius * (2/3 * Math.cos(ship.angle) + 0.5 * Math.sin(ship.angle)),
-      ship.y + ship.radius * (2/3 * Math.sin(ship.angle) - 0.5 * Math.cos(ship.angle))
+    ctx.moveTo( // Rear Left of Cone
+      ship.x - ship.radius * (1.0 * Math.cos(ship.angle) + 0.25 * Math.sin(ship.angle)),
+      ship.y + ship.radius * (1.0 * Math.sin(ship.angle) - 0.25 * Math.cos(ship.angle))
     )
-    ctx.lineTo(
-      ship.x - ship.radius * 6/3 * Math.cos(ship.angle),
-      ship.y + ship.radius * 6/3 * Math.sin(ship.angle)
+    ctx.lineTo( // Flame Tip (Further back)
+      ship.x - ship.radius * 2.0 * Math.cos(ship.angle),
+      ship.y + ship.radius * 2.0 * Math.sin(ship.angle)
     )
-    ctx.lineTo(
-      ship.x - ship.radius * (2/3 * Math.cos(ship.angle) - 0.5 * Math.sin(ship.angle)),
-      ship.y + ship.radius * (2/3 * Math.sin(ship.angle) + 0.5 * Math.cos(ship.angle))
+    ctx.lineTo( // Rear Right of Cone
+      ship.x - ship.radius * (1.0 * Math.cos(ship.angle) - 0.25 * Math.sin(ship.angle)),
+      ship.y + ship.radius * (1.0 * Math.sin(ship.angle) + 0.25 * Math.cos(ship.angle))
     )
     ctx.closePath()
     ctx.fill()
@@ -237,7 +235,28 @@ function update(time: number) {
   if (ship.y < 0 - ship.radius) ship.y = h + ship.radius
   else if (ship.y > h + ship.radius) ship.y = 0 - ship.radius
 
-  // 3. Draw Ship
+  // 3. Draw Engine Cone (NEW FEATURE)
+  ctx.fillStyle = '#333' // Dark Grey Cone
+  ctx.strokeStyle = 'white'
+  ctx.lineWidth = 2
+  ctx.beginPath()
+  ctx.moveTo( // Cone Base Left
+    ship.x - ship.radius * (2/3 * Math.cos(ship.angle) + 0.3 * Math.sin(ship.angle)),
+    ship.y + ship.radius * (2/3 * Math.sin(ship.angle) - 0.3 * Math.cos(ship.angle))
+  )
+  ctx.lineTo( // Cone Tip
+    ship.x - ship.radius * 1.05 * Math.cos(ship.angle),
+    ship.y + ship.radius * 1.05 * Math.sin(ship.angle)
+  )
+  ctx.lineTo( // Cone Base Right
+    ship.x - ship.radius * (2/3 * Math.cos(ship.angle) - 0.3 * Math.sin(ship.angle)),
+    ship.y + ship.radius * (2/3 * Math.sin(ship.angle) + 0.3 * Math.cos(ship.angle))
+  )
+  ctx.closePath()
+  ctx.fill()
+  ctx.stroke()
+
+  // 4. Draw Main Ship Body
   ctx.strokeStyle = 'white'
   ctx.lineWidth = 2
   ctx.beginPath()
@@ -256,7 +275,7 @@ function update(time: number) {
   ctx.closePath()
   ctx.stroke()
 
-  // 4. Lasers
+  // 5. Lasers
   if (keys.Space) shootLaser()
 
   for (let i = ship.lasers.length - 1; i >= 0; i--) {
@@ -281,7 +300,7 @@ function update(time: number) {
     ctx.fill()
   }
 
-  // 5. Asteroids
+  // 6. Asteroids
   asteroids.forEach((a, index) => {
     a.x += a.vx
     a.y += a.vy
@@ -338,7 +357,6 @@ const handleKeyDown = (e: KeyboardEvent) => {
 }
 
 const handleKeyUp = (e: KeyboardEvent) => {
-  // SAFETY CHECK: Prevent crash if game hasn't initialized
   if (!ship) return
 
   if (e.code === 'Space') {
@@ -356,7 +374,6 @@ onMounted(() => {
   window.addEventListener('keyup', handleKeyUp)
 
   if (canvasRef.value) {
-    // Set standard HD size
     canvasRef.value.width = 1024
     canvasRef.value.height = 768
     resetGame()
