@@ -1,0 +1,86 @@
+{
+  "name": "nuxt4-asteroids",
+  "version": "1.0.0",
+  "description": "A Nuxt 4 monorepo using Nuxt Layers / Nitro / Vite for building 1980's games",
+  "private": true,
+  "main": "nuxt.config.ts",
+  "type": "module",
+  "license": "MIT",
+  "keywords": [
+    "demonstration application",
+    "layers",
+    "mock data generator",
+    "monorepo",
+    "nuxt",
+    "nuxt 4",
+    "Starter template",
+    "typescript",
+    "vue"
+  ],
+  "packageManager": "pnpm@10.30.0",
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/steve-r-lewis/nuxt4-asteroids.git"
+  },
+  "bugs": {
+    "url": "https://github.com/steve-r-lewis/nuxt4-asteroids/issues"
+  },
+  "authors": [
+    {
+      "name": "Steve R Lewis",
+      "email": "me@steve-lewis.uk",
+      "url": "https://www.steve-lewis.uk"
+    }
+  ],
+  "funding": {
+    "type": "individual",
+    "url": "patreon.com/TheModuleFactory"
+  },
+  "scripts": {
+    "appTools": "tsx scripts/tui/app.ts",
+    "dev": "nuxt dev --force",
+    "build": "nuxt build",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare"
+  },
+  "dependencies": {
+    "@faker-js/faker": "^10.1.0",
+    "@nuxt/content": "3.11.0",
+    "@nuxt/fonts": "0.13.0",
+    "@nuxt/icon": "^2.1.0",
+    "@nuxt/image": "2.0.0",
+    "@pinia/nuxt": "^0.11.3",
+    "@tailwindcss/vite": "^4.1.18",
+    "better-sqlite3": "^12.6.2",
+    "jsonwebtoken": "^9.0.3",
+    "nodemailer": "^7.0.13",
+    "nuxt": "^4.2.2",
+    "pinia": "^3.0.4",
+    "tailwindcss": "^4.1.18",
+    "uuidv7": "^1.1.0",
+    "vue": "^3.5.25",
+    "vue-router": "^4.6.4"
+  },
+  "devDependencies": {
+    "@clack/prompts": "^0.11.0",
+    "@google/generative-ai": "^0.24.1",
+    "@nuxtjs/seo": "^3.4.0",
+    "@tailwindcss/typography": "^0.5.19",
+    "@types/node": "^25.0.3",
+    "@types/nodemailer": "^7.0.9",
+    "consola": "^3.4.2",
+    "dotenv": "^17.2.3",
+    "picocolors": "^1.1.1",
+    "simple-git": "^3.30.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vite-tsconfig-paths": "^5.1.4",
+    "vitepress": "2.0.0-alpha.15",
+    "vitest": "^4.0.15",
+    "vue-tsc": "^3.1.8"
+  }
+}

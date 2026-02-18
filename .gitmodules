@@ -1,0 +1,3 @@
+[submodule "layers/themes"]
+	path = layers/themes
+	url = " https://github.com/steve-r-lewis/nuxt4-holistic-therapy-clinic.git"

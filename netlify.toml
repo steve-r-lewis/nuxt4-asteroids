@@ -1,0 +1,18 @@
+[build]
+  command = "pnpm run build"
+  publish = ".output/public"
+
+[images]
+  remote_images = ["https://images.unsplash.com/*"]
+
+[build.environment]
+  NODE_VERSION = "20"
+  # Required for pnpm stability on Netlify
+  PNPM_FLAGS = "--shamefully-hoist"
+
+[functions]
+  # Extends timeout for complex Nitro/SQLite initializations
+  node_bundler = "esbuild"
+  external_node_modules = ["better-sqlite3"]
+
+
