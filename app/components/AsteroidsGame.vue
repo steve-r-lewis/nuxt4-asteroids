@@ -44,16 +44,16 @@ interface Entity {
 
 // --- Game Constants ---
 const FPS = 60
-const FRICTION = 0.7 // 0 = no friction, 1 = lots of friction
-const SHIP_THRUST = 5 // Acceleration
-const SHIP_TURN_SPEED = 360 // Degrees per second
-const ASTEROID_JAG = 0.4 // Irregularity of asteroids (0 = none, 1 = lots)
-const ASTEROID_NUM = 5 // Starting number of asteroids
-const ASTEROID_SIZE = 100 // Starting size in pixels
-const ASTEROID_SPEED = 50 // Max pixels per second
-const LASER_MAX = 10 // Max lasers on screen
-const LASER_SPD = 500 // Pixels per second
-const LASER_DIST = 0.4 // Max distance laser travels (screen fraction)
+const FRICTION = 0.7
+const SHIP_THRUST = 5
+const SHIP_TURN_SPEED = 360
+const ASTEROID_JAG = 0.4
+const ASTEROID_NUM = 5
+const ASTEROID_SIZE = 100
+const ASTEROID_SPEED = 50
+const LASER_MAX = 10
+const LASER_SPD = 500
+const LASER_DIST = 0.4
 
 // --- State ---
 const canvasRef = ref<HTMLCanvasElement | null>(null)
@@ -62,6 +62,7 @@ const gameOver = ref(false)
 const level = ref(1)
 
 // Game Objects
+// Initialize with a default or undefined, handled in initLevel
 let ship: Entity & { blinkNum: number; blinkTime: number; canShoot: boolean; lasers: any[] }
 let asteroids: any[] = []
 let lastTime = 0
@@ -117,7 +118,7 @@ function initLevel() {
     id: 0,
     x: w / 2,
     y: h / 2,
-    angle: 90 / 180 * Math.PI, // Convert to Radians
+    angle: 90 / 180 * Math.PI,
     radius: 15,
     vx: 0,
     vy: 0,
@@ -141,7 +142,7 @@ function initLevel() {
 }
 
 function shootLaser() {
-  if (ship.canShoot && ship.lasers.length < LASER_MAX) {
+  if (ship && ship.canShoot && ship.lasers.length < LASER_MAX) {
     ship.lasers.push({
       x: ship.x + 4/3 * ship.radius * Math.cos(ship.angle),
       y: ship.y - 4/3 * ship.radius * Math.sin(ship.angle),
@@ -151,7 +152,7 @@ function shootLaser() {
       explodeTime: 0
     })
   }
-  ship.canShoot = false // Prevent machine gun effect
+  if (ship) ship.canShoot = false
 }
 
 // --- The Main Loop ---
@@ -159,6 +160,12 @@ function update(time: number) {
   if (!canvasRef.value) return
   const ctx = canvasRef.value.getContext('2d')
   if (!ctx) return
+
+  // SAFETY CHECK: If ship isn't ready, don't run logic yet
+  if (!ship) {
+    requestAnimationFrame(update)
+    return
+  }
 
   const w = canvasRef.value.width
   const h = canvasRef.value.height
@@ -199,15 +206,15 @@ function update(time: number) {
     ctx.strokeStyle = 'yellow'
     ctx.lineWidth = 2
     ctx.beginPath()
-    ctx.moveTo( // rear left
+    ctx.moveTo(
       ship.x - ship.radius * (2/3 * Math.cos(ship.angle) + 0.5 * Math.sin(ship.angle)),
       ship.y + ship.radius * (2/3 * Math.sin(ship.angle) - 0.5 * Math.cos(ship.angle))
     )
-    ctx.lineTo( // rear center (behind the ship)
+    ctx.lineTo(
       ship.x - ship.radius * 6/3 * Math.cos(ship.angle),
       ship.y + ship.radius * 6/3 * Math.sin(ship.angle)
     )
-    ctx.lineTo( // rear right
+    ctx.lineTo(
       ship.x - ship.radius * (2/3 * Math.cos(ship.angle) - 0.5 * Math.sin(ship.angle)),
       ship.y + ship.radius * (2/3 * Math.sin(ship.angle) + 0.5 * Math.cos(ship.angle))
     )
@@ -224,7 +231,7 @@ function update(time: number) {
   ship.x += ship.vx
   ship.y += ship.vy
 
-  // Screen Wrapping (Toroidal world)
+  // Screen Wrapping
   if (ship.x < 0 - ship.radius) ship.x = w + ship.radius
   else if (ship.x > w + ship.radius) ship.x = 0 - ship.radius
   if (ship.y < 0 - ship.radius) ship.y = h + ship.radius
@@ -250,31 +257,24 @@ function update(time: number) {
   ctx.stroke()
 
   // 4. Lasers
-  if (keys.Space) shootLaser() // Logic handles rate limiting
+  if (keys.Space) shootLaser()
 
   for (let i = ship.lasers.length - 1; i >= 0; i--) {
     let l = ship.lasers[i]
-
-    // Move laser
     l.x += l.vx
     l.y += l.vy
-
-    // Calculate distance
     l.distTraveled += Math.sqrt(Math.pow(l.vx, 2) + Math.pow(l.vy, 2))
 
-    // Handle Screen Wrapping for Lasers
     if (l.x < 0) l.x = w
     else if (l.x > w) l.x = 0
     if (l.y < 0) l.y = h
     else if (l.y > h) l.y = 0
 
-    // Remove if too far
     if (l.distTraveled > w * LASER_DIST) {
       ship.lasers.splice(i, 1)
       continue
     }
 
-    // Draw Laser
     ctx.fillStyle = 'white'
     ctx.beginPath()
     ctx.arc(l.x, l.y, 2, 0, Math.PI * 2, false)
@@ -283,17 +283,14 @@ function update(time: number) {
 
   // 5. Asteroids
   asteroids.forEach((a, index) => {
-    // Move
     a.x += a.vx
     a.y += a.vy
 
-    // Wrap
     if (a.x < 0 - a.radius) a.x = w + a.radius
     else if (a.x > w + a.radius) a.x = 0 - a.radius
     if (a.y < 0 - a.radius) a.y = h + a.radius
     else if (a.y > h + a.radius) a.y = 0 - a.radius
 
-    // Draw
     ctx.strokeStyle = 'slategray'
     ctx.lineWidth = 2
     ctx.beginPath()
@@ -306,24 +303,16 @@ function update(time: number) {
     ctx.closePath()
     ctx.stroke()
 
-    // Collision Detection (Ship vs Asteroid)
     if (distBetweenPoints(ship.x, ship.y, a.x, a.y) < ship.radius + a.radius) {
       gameOver.value = true
     }
 
-    // Collision Detection (Laser vs Asteroid)
     for (let l = ship.lasers.length - 1; l >= 0; l--) {
       if (distBetweenPoints(ship.lasers[l].x, ship.lasers[l].y, a.x, a.y) < a.radius) {
-
-        // Remove Laser
         ship.lasers.splice(l, 1)
-
-        // Destroy Asteroid
         asteroids.splice(index, 1)
         score.value += 100
-
-        // Split Asteroid?
-        if(a.radius > 15) { // Minimum size
+        if(a.radius > 15) {
           asteroids.push(createAsteroid(a.x, a.y, a.radius / 2))
           asteroids.push(createAsteroid(a.x, a.y, a.radius / 2))
         }
@@ -349,9 +338,12 @@ const handleKeyDown = (e: KeyboardEvent) => {
 }
 
 const handleKeyUp = (e: KeyboardEvent) => {
+  // SAFETY CHECK: Prevent crash if game hasn't initialized
+  if (!ship) return
+
   if (e.code === 'Space') {
     keys.Space = false
-    ship.canShoot = true // Reset trigger
+    ship.canShoot = true
   }
   if (e.code === 'ArrowUp') keys.ArrowUp = false
   if (e.code === 'ArrowLeft') keys.ArrowLeft = false
@@ -384,7 +376,7 @@ onUnmounted(() => {
       <span>Score: {{ score }}</span>
       <span>Level: {{ level }}</span>
     </div>
-    <canvas ref="canvas" class="game-canvas"></canvas>
+    <canvas ref="canvasRef" class="game-canvas"></canvas>
     <div class="controls">
       <p>Use <b>Arrow Keys</b> to Move/Rotate. <b>Space</b> to Shoot.</p>
     </div>

@@ -39,7 +39,7 @@ import AsteroidsGame from "../components/AsteroidsGame.vue";
 </script>
 
 <template>
-  <div class="max-w-7xl mx-auto px-6 py-10 space-y-24">
+  <div>
     <AsteroidsGame />
   </div>
 </template>

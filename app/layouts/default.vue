@@ -31,8 +31,8 @@
 </script>
 
 <template>
-  <div class="flex flex-col min-h-screen bg-white font-sans antialiased text-gray-600">
-    <main class="flex-1 w-full">
+  <div>
+    <main>
       <slot />
     </main>
   </div>
