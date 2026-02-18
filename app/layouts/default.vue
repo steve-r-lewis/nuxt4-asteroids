@@ -32,13 +32,9 @@
 
 <template>
   <div class="flex flex-col min-h-screen bg-white font-sans antialiased text-gray-600">
-    <LayoutSiteHeader />
-
     <main class="flex-1 w-full">
       <slot />
     </main>
-
-    <LayoutSiteFooter />
   </div>
 </template>
 
