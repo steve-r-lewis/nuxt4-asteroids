@@ -77,7 +77,7 @@ export const useGameConstants = () => {
 
     /** * Bounciness (0 = no bounce, 1 = perfect elastic bounce).
      */
-    RESTITUTION: 1.0,
+    RESTITUTION: 0.5,
 
     // --------------------------------------------------------------------------
     // WEAPON SETTINGS

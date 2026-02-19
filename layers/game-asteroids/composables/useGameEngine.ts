@@ -240,147 +240,88 @@ export const useGameEngine = (canvasRef: Ref<HTMLCanvasElement | null>) => {
     });
 
     // B. Check Collisions (Asteroid vs Asteroid)
-    // for (let i = 0; i < asteroids.length; i++) {
-    //   for (let j = i + 1; j < asteroids.length; j++) {
-    //     const a1 = asteroids[i];
-    //     const a2 = asteroids[j];
-    //
-    //     if (a1.dead || a2.dead) continue
-    //
-    //     // Check if touching
-    //     const distVal = dist(a1.x, a1.y, a2.x, a2.y);
-    //     if (distVal < a1.radius + a2.radius) {
-    //
-    //       // --- RANDOM INTERACTION ---
-    //       // 50% Chance to Explode, 50% Chance to Bounce
-    //       if (Math.random() < 0.5) {
-    //         // 1. EXPLODE
-    //         a1.dead = true;
-    //         a2.dead = true
-    //       } else {
-    //         // 2. BOUNCE (Elastic Collision)
-    //
-    //         // Normalize Normal Vector
-    //         const nx = (a2.x - a1.x) / distVal;
-    //         const ny = (a2.y - a1.y) / distVal;
-    //
-    //         // Resolve Overlap (Push them apart so they don't stick)
-    //         const overlap = (a1.radius + a2.radius) - distVal;
-    //         a1.x -= nx * overlap * 0.5;
-    //         a1.y -= ny * overlap * 0.5;
-    //         a2.x += nx * overlap * 0.5;
-    //         a2.y += ny * overlap * 0.5;
-    //
-    //         // Tangent Vector
-    //         const tx = -ny;
-    //         const ty = nx;
-    //
-    //         // Dot Product Tangent
-    //         const dpTan1 = a1.vx * tx + a1.vy * ty;
-    //         const dpTan2 = a2.vx * tx + a2.vy * ty;
-    //
-    //         // Dot Product Normal
-    //         const dpNorm1 = a1.vx * nx + a1.vy * ny;
-    //         const dpNorm2 = a2.vx * nx + a2.vy * ny;
-    //
-    //         // Conservation of Momentum (Mass is proportional to Radius)
-    //         const m1 = a1.radius;
-    //         const m2 = a2.radius;
-    //
-    //         const mom1 = (dpNorm1 * (m1 - m2) + 2 * m2 * dpNorm2) / (m1 + m2);
-    //         const mom2 = (dpNorm2 * (m2 - m1) + 2 * m1 * dpNorm1) / (m1 + m2);
-    //
-    //         // Update Velocities
-    //         a1.vx = tx * dpTan1 + nx * mom1;
-    //         a1.vy = ty * dpTan1 + ny * mom1;
-    //         a2.vx = tx * dpTan2 + nx * mom2;
-    //         a2.vy = ty * dpTan2 + ny * mom2
-    //       }
-    //     }
-    //   }
-    // }
     // B. Check Collisions (Asteroid vs Asteroid)
     for (let i = 0; i < asteroids.length; i++) {
       for (let j = i + 1; j < asteroids.length; j++) {
-        const a1 = asteroids[i];
-        const a2 = asteroids[j];
+        const a1 = asteroids[i]
+        const a2 = asteroids[j]
 
-        if (a1.dead || a2.dead) continue;
+        if (a1.dead || a2.dead) continue
 
-        // Calculate distance and vector between centers
-        const dx = a2.x - a1.x;
-        const dy = a2.y - a1.y;
-        const distVal = dist(a1.x, a1.y, a2.x, a2.y); // using your existing dist() helper
+        const dx = a2.x - a1.x
+        const dy = a2.y - a1.y
+        const distVal = dist(a1.x, a1.y, a2.x, a2.y)
 
         // Check if touching
         if (distVal < a1.radius + a2.radius) {
 
-          // 1. Calculate Mass (Area = PI * r^2)
-          const m1 = Math.PI * (a1.radius ** 2);
-          const m2 = Math.PI * (a2.radius ** 2);
+          // 1. Calculate Mass (Area) & Inverse Mass
+          const m1 = Math.PI * (a1.radius ** 2)
+          const m2 = Math.PI * (a2.radius ** 2)
+          const invM1 = 1 / m1
+          const invM2 = 1 / m2
 
-          // 2. Calculate Collision Normal (Unit Vector)
-          const nx = dx / distVal;
-          const ny = dy / distVal;
+          // 2. Calculate Collision Normal (Unit vector pointing from a1 -> a2)
+          // (Fallback to 1,0 if perfectly stacked to avoid NaN)
+          const nx = distVal === 0 ? 1 : dx / distVal
+          const ny = distVal === 0 ? 0 : dy / distVal
 
-          // 3. Relative Velocity
-          const rvx = a1.vx - a2.vx;
-          const rvy = a1.vy - a2.vy;
+          // 3. Absolute Positional Separation (Fixes Overlap/Sticking)
+          const overlap = (a1.radius + a2.radius) - distVal
+          if (overlap > 0) {
+            // Push exactly apart based on mass ratio.
+            // We add 1% (1.01) padding to prevent floating-point re-collisions on the very next frame.
+            const separationTotal = overlap * 1.01
+            const separation1 = (invM1 / (invM1 + invM2)) * separationTotal
+            const separation2 = (invM2 / (invM1 + invM2)) * separationTotal
 
-          // Velocity along the normal
-          const velAlongNormal = rvx * nx + rvy * ny;
+            a1.x -= nx * separation1
+            a1.y -= ny * separation1
+            a2.x += nx * separation2
+            a2.y += ny * separation2
+          }
 
-          // Do not resolve if velocities are separating (objects moving apart)
+          // 4. True Relative Velocity (Velocity of a2 relative to a1)
+          const rvx = a2.vx - a1.vx
+          const rvy = a2.vy - a1.vy
+
+          // 5. Velocity along the normal
+          const velAlongNormal = rvx * nx + rvy * ny
+
+          // If velocities are separating (> 0), do not apply impulse (Fixes the pass-through bug)
           if (velAlongNormal > 0) continue
 
-          // 4. Calculate Impulse (J)
-          const e = CONST.RESTITUTION;
-          const jForce = -(1 + e) * velAlongNormal / (1 / m1 + 1 / m2);
+          // 6. Calculate Impulse (J)
+          const e = CONST.RESTITUTION
+          const jForce = -(1 + e) * velAlongNormal / (invM1 + invM2)
 
-          // Represent the impact force as the absolute magnitude of the impulse
-          const impactForce = Math.abs(jForce);
+          const impactForce = Math.abs(jForce)
 
           if (impactForce < CONST.COLLISION_BREAK_THRESHOLD) {
             // --- ELASTIC BOUNCE ---
+            const impulseX = jForce * nx
+            const impulseY = jForce * ny
 
-            // Apply impulse to velocities
-            const impulseX = jForce * nx;
-            const impulseY = jForce * ny;
-
-            a1.vx += impulseX / m1;
-            a1.vy += impulseY / m1;
-            a2.vx -= impulseX / m2;
-            a2.vy -= impulseY / m2;
-
-            // Positional Correction (Resolves overlap so they don't stick)
-            const percent = 0.5; // Penetration percentage to correct
-            const overlap = (a1.radius + a2.radius) - distVal;
-            const correction = (overlap / (1 / m1 + 1 / m2)) * percent;
-
-            const cx = correction * nx;
-            const cy = correction * ny;
-
-            // Push objects apart along the normal, proportional to inverse mass
-            a1.x -= cx / m1;
-            a1.y -= cy / m1;
-            a2.x += cx / m2;
-            a2.y += cy / m2;
+            // Apply impulse. Because normal points a1 -> a2:
+            // a1 gets pushed negatively (away), a2 gets pushed positively (away)
+            a1.vx -= impulseX * invM1
+            a1.vy -= impulseY * invM1
+            a2.vx += impulseX * invM2
+            a2.vy += impulseY * invM2
 
           } else {
             // --- DESTRUCTION / FRAGMENTATION ---
-            a1.dead = true;
-            a2.dead = true;
+            a1.dead = true
+            a2.dead = true
 
-            // Identify the larger and smaller asteroid
-            const a1Larger = a1.radius > a2.radius;
-            const larger = a1Larger ? a1 : a2;
-            const smaller = a1Larger ? a2 : a1;
+            const a1Larger = a1.radius > a2.radius
+            const larger = a1Larger ? a1 : a2
+            const smaller = a1Larger ? a2 : a1
 
-            // Calculate Mass Ratio (e.g., if > 2.0, the larger object is twice as heavy)
-            const massRatio = (Math.PI * (larger.radius ** 2)) / (Math.PI * (smaller.radius ** 2));
+            // Math.PI cancels out in the ratio comparison
+            const massRatio = (larger.radius ** 2) / (smaller.radius ** 2)
 
-            // If the smaller asteroid is significantly smaller (mass ratio > 2.5), obliterate it.
-            // By setting radius to 0, Step 'D' will bypass it and it won't spawn fragments.
+            // If an asteroid is vastly overpowered (e.g., > 2.5x mass), obliterate the smaller one
             if (massRatio > 2.5) {
               smaller.radius = 0
             }
