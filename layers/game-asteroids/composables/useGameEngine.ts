@@ -27,17 +27,16 @@ export const useGameEngine = (canvasRef: Ref<HTMLCanvasElement | null>) => {
   const CONST = useGameConstants()
   const { keys, shootRequest } = useGameInput()
 
+  // State
   const score = ref(0)
   const level = ref(1)
   const gameOver = ref(false)
-  const highScoreList = ref<any[]>([])
 
-  // [UPDATED] Entity now has 'mass'
+  // Entities
   type Entity = {
     x: number, y: number,
     vx: number, vy: number,
     radius: number, angle: number,
-    mass: number, // New property
     vert: number, offs: number[],
     dead: boolean
   }
@@ -45,13 +44,12 @@ export const useGameEngine = (canvasRef: Ref<HTMLCanvasElement | null>) => {
   let ship: any = null
   let asteroids: Entity[] = []
 
+  // Helpers
   const toRad = (deg: number) => deg * (Math.PI / 180)
   const dist = (x1: number, y1: number, x2: number, y2: number) =>
     Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2))
 
-  const fetchScores = async () => { /* ... existing code ... */ }
-  const submitScore = async (name: string) => { /* ... existing code ... */ }
-
+  // --- Entity Creation ---
   const createAsteroid = (x: number, y: number, r: number): Entity => {
     const lvlMult = 1 + 0.1 * level.value
     const roid = {
@@ -59,9 +57,6 @@ export const useGameEngine = (canvasRef: Ref<HTMLCanvasElement | null>) => {
       vx: Math.random() * CONST.ASTEROID_SPEED * lvlMult * (Math.random() < 0.5 ? 1 : -1) / CONST.FPS,
       vy: Math.random() * CONST.ASTEROID_SPEED * lvlMult * (Math.random() < 0.5 ? 1 : -1) / CONST.FPS,
       radius: r,
-      // [NEW] Mass is proportional to Area (r^2).
-      // This means a 100px asteroid is 4x heavier than a 50px one.
-      mass: r * r,
       angle: Math.random() * Math.PI * 2,
       vert: Math.floor(Math.random() * (10) + 7),
       offs: [] as number[],
@@ -97,6 +92,7 @@ export const useGameEngine = (canvasRef: Ref<HTMLCanvasElement | null>) => {
     }
   }
 
+  // --- Main Update Loop ---
   const update = () => {
     if (!canvasRef.value || !ship) return
     const ctx = canvasRef.value.getContext('2d')
@@ -104,13 +100,30 @@ export const useGameEngine = (canvasRef: Ref<HTMLCanvasElement | null>) => {
     const w = canvasRef.value.width
     const h = canvasRef.value.height
 
-    // 1. Clear & Draw Background
+    // 1. Draw Background
     ctx.fillStyle = CONST.COLOR.BG
     ctx.fillRect(0, 0, w, h)
 
-    if (gameOver.value) return
+    if (gameOver.value) {
+      ctx.fillStyle = CONST.COLOR.TEXT
+      ctx.font = '40px Courier New'
+      ctx.textAlign = 'center'
+      ctx.fillText("GAME OVER", w/2, h/2)
+      ctx.font = '20px Courier New'
+      ctx.fillText("Press Space to Restart", w/2, h/2 + 40)
 
-    // 2. Physics: Ship (Inertia + Thrust)
+      if (shootRequest.value) {
+        score.value = 0
+        level.value = 1
+        gameOver.value = false
+        shootRequest.value = false
+        initLevel()
+      }
+      requestAnimationFrame(update)
+      return
+    }
+
+    // 2. Physics: Ship
     if (keys.ArrowLeft) ship.angle += toRad(CONST.SHIP_TURN_SPEED) / CONST.FPS
     if (keys.ArrowRight) ship.angle -= toRad(CONST.SHIP_TURN_SPEED) / CONST.FPS
 
@@ -118,165 +131,235 @@ export const useGameEngine = (canvasRef: Ref<HTMLCanvasElement | null>) => {
       ship.vx += CONST.SHIP_THRUST * Math.cos(ship.angle) / CONST.FPS
       ship.vy -= CONST.SHIP_THRUST * Math.sin(ship.angle) / CONST.FPS
 
-      // Draw Exhaust
-      ctx.fillStyle = 'red'; ctx.strokeStyle = 'yellow'; ctx.lineWidth = 2; ctx.beginPath()
-      ctx.moveTo(ship.x - ship.radius * (Math.cos(ship.angle) + 0.5 * Math.sin(ship.angle)), ship.y + ship.radius * (Math.sin(ship.angle) - 0.5 * Math.cos(ship.angle)))
-      ctx.lineTo(ship.x - ship.radius * 2 * Math.cos(ship.angle), ship.y + ship.radius * 2 * Math.sin(ship.angle))
-      ctx.lineTo(ship.x - ship.radius * (Math.cos(ship.angle) - 0.5 * Math.sin(ship.angle)), ship.y + ship.radius * (Math.sin(ship.angle) + 0.5 * Math.cos(ship.angle)))
+      // Draw Thruster (Emerging from the cone)
+      ctx.fillStyle = 'red'
+      ctx.strokeStyle = 'yellow'
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.moveTo(
+        ship.x - ship.radius * (1.0 * Math.cos(ship.angle) + 0.25 * Math.sin(ship.angle)),
+        ship.y + ship.radius * (1.0 * Math.sin(ship.angle) - 0.25 * Math.cos(ship.angle))
+      )
+      ctx.lineTo(
+        ship.x - ship.radius * 2.0 * Math.cos(ship.angle),
+        ship.y + ship.radius * 2.0 * Math.sin(ship.angle)
+      )
+      ctx.lineTo(
+        ship.x - ship.radius * (1.0 * Math.cos(ship.angle) - 0.25 * Math.sin(ship.angle)),
+        ship.y + ship.radius * (1.0 * Math.sin(ship.angle) + 0.25 * Math.cos(ship.angle))
+      )
       ctx.closePath(); ctx.fill(); ctx.stroke()
     } else {
       ship.vx -= CONST.FRICTION * ship.vx / CONST.FPS
       ship.vy -= CONST.FRICTION * ship.vy / CONST.FPS
     }
+
     ship.x += ship.vx; ship.y += ship.vy
 
-    // Ship Wrap
-    if (ship.x < 0 - ship.radius) ship.x = w + ship.radius; else if (ship.x > w + ship.radius) ship.x = 0 - ship.radius
-    if (ship.y < 0 - ship.radius) ship.y = h + ship.radius; else if (ship.y > h + ship.radius) ship.y = 0 - ship.radius
+    // Wrap Ship
+    if (ship.x < 0 - ship.radius) ship.x = w + ship.radius
+    else if (ship.x > w + ship.radius) ship.x = 0 - ship.radius
+    if (ship.y < 0 - ship.radius) ship.y = h + ship.radius
+    else if (ship.y > h + ship.radius) ship.y = 0 - ship.radius
 
-    // Draw Rocket Cone
-    ctx.fillStyle = '#333'; ctx.strokeStyle = 'white'; ctx.lineWidth = 2; ctx.beginPath()
-    ctx.moveTo(ship.x - ship.radius * (2/3 * Math.cos(ship.angle) + 0.3 * Math.sin(ship.angle)), ship.y + ship.radius * (2/3 * Math.sin(ship.angle) - 0.3 * Math.cos(ship.angle)))
-    ctx.lineTo(ship.x - ship.radius * 1.05 * Math.cos(ship.angle), ship.y + ship.radius * 1.05 * Math.sin(ship.angle))
-    ctx.lineTo(ship.x - ship.radius * (2/3 * Math.cos(ship.angle) - 0.3 * Math.sin(ship.angle)), ship.y + ship.radius * (2/3 * Math.sin(ship.angle) + 0.3 * Math.cos(ship.angle)))
+    // Draw Engine Cone
+    ctx.fillStyle = '#333'
+    ctx.strokeStyle = 'white'
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.moveTo(
+      ship.x - ship.radius * (2/3 * Math.cos(ship.angle) + 0.3 * Math.sin(ship.angle)),
+      ship.y + ship.radius * (2/3 * Math.sin(ship.angle) - 0.3 * Math.cos(ship.angle))
+    )
+    ctx.lineTo(
+      ship.x - ship.radius * 1.05 * Math.cos(ship.angle),
+      ship.y + ship.radius * 1.05 * Math.sin(ship.angle)
+    )
+    ctx.lineTo(
+      ship.x - ship.radius * (2/3 * Math.cos(ship.angle) - 0.3 * Math.sin(ship.angle)),
+      ship.y + ship.radius * (2/3 * Math.sin(ship.angle) + 0.3 * Math.cos(ship.angle))
+    )
     ctx.closePath(); ctx.fill(); ctx.stroke()
 
-    // Draw Ship
-    ctx.strokeStyle = CONST.COLOR.SHIP; ctx.lineWidth = 2; ctx.beginPath()
-    ctx.moveTo(ship.x + 4/3 * ship.radius * Math.cos(ship.angle), ship.y - 4/3 * ship.radius * Math.sin(ship.angle))
-    ctx.lineTo(ship.x - ship.radius * (2/3 * Math.cos(ship.angle) + Math.sin(ship.angle)), ship.y + ship.radius * (2/3 * Math.sin(ship.angle) - Math.cos(ship.angle)))
-    ctx.lineTo(ship.x - ship.radius * (2/3 * Math.cos(ship.angle) - Math.sin(ship.angle)), ship.y + ship.radius * (2/3 * Math.sin(ship.angle) + Math.cos(ship.angle)))
+    // Draw Main Ship Body
+    ctx.strokeStyle = CONST.COLOR.SHIP
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.moveTo(
+      ship.x + 4/3 * ship.radius * Math.cos(ship.angle),
+      ship.y - 4/3 * ship.radius * Math.sin(ship.angle)
+    )
+    ctx.lineTo(
+      ship.x - ship.radius * (2/3 * Math.cos(ship.angle) + Math.sin(ship.angle)),
+      ship.y + ship.radius * (2/3 * Math.sin(ship.angle) - Math.cos(ship.angle))
+    )
+    ctx.lineTo(
+      ship.x - ship.radius * (2/3 * Math.cos(ship.angle) - Math.sin(ship.angle)),
+      ship.y + ship.radius * (2/3 * Math.sin(ship.angle) + Math.cos(ship.angle))
+    )
     ctx.closePath(); ctx.stroke()
 
     // 3. Lasers
     if (shootRequest.value && ship.lasers.length < CONST.LASER_MAX) {
-      ship.lasers.push({ x: ship.x + 4/3 * ship.radius * Math.cos(ship.angle), y: ship.y - 4/3 * ship.radius * Math.sin(ship.angle), vx: CONST.LASER_SPD * Math.cos(ship.angle) / CONST.FPS, vy: -CONST.LASER_SPD * Math.sin(ship.angle) / CONST.FPS, dist: 0, dead: false })
+      ship.lasers.push({
+        x: ship.x + 4/3 * ship.radius * Math.cos(ship.angle),
+        y: ship.y - 4/3 * ship.radius * Math.sin(ship.angle),
+        vx: CONST.LASER_SPD * Math.cos(ship.angle) / CONST.FPS,
+        vy: -CONST.LASER_SPD * Math.sin(ship.angle) / CONST.FPS,
+        dist: 0,
+        dead: false
+      })
     }
     shootRequest.value = false
+
     ship.lasers = ship.lasers.filter((l:any) => !l.dead)
     for (let l of ship.lasers) {
-      l.x += l.vx; l.y += l.vy; l.dist += Math.sqrt(l.vx**2 + l.vy**2)
+      l.x += l.vx; l.y += l.vy
+      l.dist += Math.sqrt(l.vx**2 + l.vy**2)
+
       if (l.x < 0) l.x = w; else if (l.x > w) l.x = 0
       if (l.y < 0) l.y = h; else if (l.y > h) l.y = 0
-      if (l.dist > w * CONST.LASER_DIST) l.dead = true
-      ctx.fillStyle = CONST.COLOR.LASER; ctx.beginPath(); ctx.arc(l.x, l.y, 2, 0, Math.PI * 2, false); ctx.fill()
+
+      if (l.dist > w * CONST.LASER_DIST) {
+        l.dead = true; continue
+      }
+
+      ctx.fillStyle = CONST.COLOR.LASER
+      ctx.beginPath(); ctx.arc(l.x, l.y, 2, 0, Math.PI * 2, false); ctx.fill()
     }
 
-    // 4. Asteroids Logic (Move & Wrap)
+    // 4. Asteroids Logic
+
+    // A. Move & Wrap
     asteroids.forEach(a => {
       a.x += a.vx; a.y += a.vy
-      if (a.x < 0 - a.radius) a.x = w + a.radius; else if (a.x > w + a.radius) a.x = 0 - a.radius
-      if (a.y < 0 - a.radius) a.y = h + a.radius; else if (a.y > h + a.radius) a.y = 0 - a.radius
+      if (a.x < 0 - a.radius) a.x = w + a.radius
+      else if (a.x > w + a.radius) a.x = 0 - a.radius
+      if (a.y < 0 - a.radius) a.y = h + a.radius
+      else if (a.y > h + a.radius) a.y = 0 - a.radius
     })
 
-    // [NEW] 5. Physics Collision: Asteroid vs Asteroid
+    // B. Check Collisions (Asteroid vs Asteroid)
     for (let i = 0; i < asteroids.length; i++) {
       for (let j = i + 1; j < asteroids.length; j++) {
         const a1 = asteroids[i]
         const a2 = asteroids[j]
+
         if (a1.dead || a2.dead) continue
 
-        // Distance Check
-        const dx = a2.x - a1.x
-        const dy = a2.y - a1.y
-        const distVal = Math.sqrt(dx*dx + dy*dy)
-
+        // Check if touching
+        const distVal = dist(a1.x, a1.y, a2.x, a2.y)
         if (distVal < a1.radius + a2.radius) {
-          // --- PHYSICS CALCULATION ---
 
-          // 1. Normal Unit Vector (Direction of collision)
-          const nx = dx / distVal
-          const ny = dy / distVal
-
-          // 2. Relative Velocity (v2 - v1)
-          const dvx = a2.vx - a1.vx
-          const dvy = a2.vy - a1.vy
-
-          // 3. Impact Speed (Velocity along the normal)
-          // If > 0, they are moving apart, so skip collision response
-          const velAlongNormal = dvx * nx + dvy * ny
-          if (velAlongNormal > 0) continue
-
-          // 4. Kinetic Energy of the Collision
-          // Uses "Reduced Mass" logic: E = 0.5 * (m1*m2)/(m1+m2) * v_rel^2
-          // We scale it up by 1000 to make the numbers easier to work with in constants
-          const reducedMass = (a1.mass * a2.mass) / (a1.mass + a2.mass)
-          const impactEnergy = 0.5 * reducedMass * (velAlongNormal * velAlongNormal) * 1000
-
-          // --- DECISION: SHATTER OR BOUNCE? ---
-          if (impactEnergy > CONST.COLLISION_BREAK_THRESHOLD) {
-            // HIGH ENERGY -> DESTRUCTION
+          // --- RANDOM INTERACTION ---
+          // 50% Chance to Explode, 50% Chance to Bounce
+          if (Math.random() < 0.5) {
+            // 1. EXPLODE
             a1.dead = true
             a2.dead = true
           } else {
-            // LOW ENERGY -> BOUNCE (Elastic Collision)
+            // 2. BOUNCE (Elastic Collision)
 
-            // A. Separate them (prevent sticking)
+            // Normalize Normal Vector
+            const nx = (a2.x - a1.x) / distVal
+            const ny = (a2.y - a1.y) / distVal
+
+            // Resolve Overlap (Push them apart so they don't stick)
             const overlap = (a1.radius + a2.radius) - distVal
-            const mTotal = a1.mass + a2.mass
-            // Move lighter asteroid more than heavier one
-            a1.x -= nx * overlap * (a2.mass / mTotal)
-            a1.y -= ny * overlap * (a2.mass / mTotal)
-            a2.x += nx * overlap * (a1.mass / mTotal)
-            a2.y += ny * overlap * (a1.mass / mTotal)
+            a1.x -= nx * overlap * 0.5
+            a1.y -= ny * overlap * 0.5
+            a2.x += nx * overlap * 0.5
+            a2.y += ny * overlap * 0.5
 
-            // B. Impulse Scalar
-            // j = -(1 + e) * v_rel_normal / (1/m1 + 1/m2)
-            const j = -(1 + CONST.RESTITUTION) * velAlongNormal / (1/a1.mass + 1/a2.mass)
+            // Tangent Vector
+            const tx = -ny
+            const ty = nx
 
-            // C. Apply Impulse
-            const impulseX = j * nx
-            const impulseY = j * ny
+            // Dot Product Tangent
+            const dpTan1 = a1.vx * tx + a1.vy * ty
+            const dpTan2 = a2.vx * tx + a2.vy * ty
 
-            a1.vx -= impulseX / a1.mass
-            a1.vy -= impulseY / a1.mass
-            a2.vx += impulseX / a2.mass
-            a2.vy += impulseY / a2.mass
+            // Dot Product Normal
+            const dpNorm1 = a1.vx * nx + a1.vy * ny
+            const dpNorm2 = a2.vx * nx + a2.vy * ny
+
+            // Conservation of Momentum (Mass is proportional to Radius)
+            const m1 = a1.radius
+            const m2 = a2.radius
+
+            const mom1 = (dpNorm1 * (m1 - m2) + 2 * m2 * dpNorm2) / (m1 + m2)
+            const mom2 = (dpNorm2 * (m2 - m1) + 2 * m1 * dpNorm1) / (m1 + m2)
+
+            // Update Velocities
+            a1.vx = tx * dpTan1 + nx * mom1
+            a1.vy = ty * dpTan1 + ny * mom1
+            a2.vx = tx * dpTan2 + nx * mom2
+            a2.vy = ty * dpTan2 + ny * mom2
           }
         }
       }
     }
 
-    // 6. Other Collisions & Drawing
-    const nextAsteroids: Entity[] = []
-
+    // C. Check Collisions (Lasers & Ship)
     asteroids.forEach(a => {
-      // Check Ship
-      if (!a.dead && dist(ship.x, ship.y, a.x, a.y) < ship.radius + a.radius) {
+      if (a.dead) return
+
+      // Ship vs Asteroid
+      if (dist(ship.x, ship.y, a.x, a.y) < ship.radius + a.radius) {
         gameOver.value = true
-        fetchScores()
       }
-      // Check Lasers
+
+      // Laser vs Asteroid
       for (let l of ship.lasers) {
-        if (l.dead || a.dead) continue
+        if (l.dead) continue
         if (dist(l.x, l.y, a.x, a.y) < a.radius) {
-          a.dead = true; l.dead = true; score.value += 100
+          a.dead = true
+          l.dead = true
+          score.value += 100
+          break
         }
       }
+    })
 
-      // Process Lifecycle
+    // D. Process Destruction (Draw & Spawn)
+    const nextAsteroids: Entity[] = []
+    asteroids.forEach(a => {
       if (a.dead) {
         if (a.radius > 20) {
-          // Spawn children slightly offset to prevent instant re-collision
           nextAsteroids.push(createAsteroid(a.x - a.radius * 0.5, a.y - a.radius * 0.5, a.radius / 2))
           nextAsteroids.push(createAsteroid(a.x + a.radius * 0.5, a.y + a.radius * 0.5, a.radius / 2))
         }
       } else {
         nextAsteroids.push(a)
-        ctx.strokeStyle = CONST.COLOR.ASTEROID; ctx.lineWidth = 2; ctx.beginPath()
+
+        ctx.strokeStyle = CONST.COLOR.ASTEROID
+        ctx.lineWidth = 2
+        ctx.beginPath()
         for (let j = 0; j < a.vert; j++) {
-          ctx.lineTo(a.x + a.radius * a.offs[j] * Math.cos(a.angle + j * Math.PI * 2 / a.vert), a.y + a.radius * a.offs[j] * Math.sin(a.angle + j * Math.PI * 2 / a.vert))
+          ctx.lineTo(
+            a.x + a.radius * a.offs[j] * Math.cos(a.angle + j * Math.PI * 2 / a.vert),
+            a.y + a.radius * a.offs[j] * Math.sin(a.angle + j * Math.PI * 2 / a.vert)
+          )
         }
         ctx.closePath(); ctx.stroke()
       }
     })
+
+    // Update List
     asteroids = nextAsteroids
 
-    if (asteroids.length === 0) { level.value++; initLevel() }
+    if (asteroids.length === 0) {
+      level.value++
+      initLevel()
+    }
+
     requestAnimationFrame(update)
   }
 
-  const startGame = () => { initLevel(); gameOver.value = false; score.value = 0; level.value = 1; requestAnimationFrame(update) }
+  const startGame = () => {
+    initLevel()
+    requestAnimationFrame(update)
+  }
 
-  return { score, level, gameOver, startGame, submitScore, highScoreList }
+  return { score, level, gameOver, startGame }
 }
