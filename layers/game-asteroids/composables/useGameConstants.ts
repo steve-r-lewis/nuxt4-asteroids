@@ -45,7 +45,7 @@ export const useGameConstants = () => {
     SHIP_THRUST: 0.5,
 
     /** Rotation speed in Degrees per Second. */
-    SHIP_TURN_SPEED: 120,
+    SHIP_TURN_SPEED: 180,
 
     // --------------------------------------------------------------------------
     // ASTEROID SETTINGS
@@ -74,8 +74,8 @@ export const useGameConstants = () => {
      * Lower = everything explodes on contact.
      */
     COLLISION_BREAK_THRESHOLD: {
-      MIN: 100000,
-      MAX: 500000
+      MIN: 100,
+      MAX: 1500
     },
 
     /** * Bounciness (0 = no bounce, 1 = perfect elastic bounce).

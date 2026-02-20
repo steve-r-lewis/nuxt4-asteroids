@@ -286,8 +286,10 @@ export const useGameEngine = (canvasRef: Ref<HTMLCanvasElement | null>) => {
           if (velAlongNormal > 0) continue
 
           // Impact Energy
-          const reducedMass = (m1 * m2) / (m1 + m2)
-          const impactEnergy = 0.5 * reducedMass * (velAlongNormal ** 2)
+          const reducedMass = (m1 * m2) / (m1 + m2);
+          const impactEnergy = 0.5 * reducedMass * (velAlongNormal ** 2);
+
+          console.log(`Collision! Energy: ${Math.round(impactEnergy)}`); // <--- Add this temporarily
 
           // Evaluate individually against their own specific fragilities
           const a1Breaks = impactEnergy >= a1.fragility
