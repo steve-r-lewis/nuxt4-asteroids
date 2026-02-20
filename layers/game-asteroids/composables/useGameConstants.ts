@@ -73,11 +73,14 @@ export const useGameConstants = () => {
      * Higher = harder to break (more bouncing).
      * Lower = everything explodes on contact.
      */
-    COLLISION_BREAK_THRESHOLD: 150000,
+    COLLISION_BREAK_THRESHOLD: {
+      MIN: 100000,
+      MAX: 500000
+    },
 
     /** * Bounciness (0 = no bounce, 1 = perfect elastic bounce).
      */
-    RESTITUTION: 0.5,
+    RESTITUTION: 0.7,
 
     // --------------------------------------------------------------------------
     // WEAPON SETTINGS

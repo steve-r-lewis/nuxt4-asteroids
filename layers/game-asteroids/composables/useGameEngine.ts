@@ -33,12 +33,14 @@ export const useGameEngine = (canvasRef: Ref<HTMLCanvasElement | null>) => {
   const gameOver = ref(false);
 
   // Entities
+  // NEW Added fragility to the Entity type
   type Entity = {
     x: number, y: number,
     vx: number, vy: number,
     radius: number, angle: number,
     vert: number, offs: number[],
-    dead: boolean
+    dead: boolean,
+    fragility: number // <--- NEW
   }
 
   let ship: any = null;
@@ -50,8 +52,10 @@ export const useGameEngine = (canvasRef: Ref<HTMLCanvasElement | null>) => {
     Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
 
   // --- Entity Creation ---
-  const createAsteroid = (x: number, y: number, r: number): Entity => {
-    const lvlMult = 1 + 0.1 * level.value;
+
+  // Add the inheritedFragility parameter
+  const createAsteroid = (x: number, y: number, r: number, inheritedFragility?: number): Entity => {
+    const lvlMult = 1 + 0.1 * level.value
     const roid = {
       x, y,
       vx: Math.random() * CONST.ASTEROID_SPEED * lvlMult * (Math.random() < 0.5 ? 1 : -1) / CONST.FPS,
@@ -60,13 +64,15 @@ export const useGameEngine = (canvasRef: Ref<HTMLCanvasElement | null>) => {
       angle: Math.random() * Math.PI * 2,
       vert: Math.floor(Math.random() * (10) + 7),
       offs: [] as number[],
-      dead: false
-    };
+      dead: false,
+      // Use inherited value if it exists, otherwise generate a new random value from the range
+      fragility: inheritedFragility ?? (Math.random() * (CONST.COLLISION_BREAK_THRESHOLD.MAX - CONST.COLLISION_BREAK_THRESHOLD.MIN) + CONST.COLLISION_BREAK_THRESHOLD.MIN)
+    }
     for (let i = 0; i < roid.vert; i++) {
       roid.offs.push(Math.random() * CONST.ASTEROID_JAG * 2 + 1 - CONST.ASTEROID_JAG)
     }
     return roid
-  };
+  }
 
   const initLevel = () => {
     if (!canvasRef.value) return
@@ -240,7 +246,6 @@ export const useGameEngine = (canvasRef: Ref<HTMLCanvasElement | null>) => {
     });
 
     // B. Check Collisions (Asteroid vs Asteroid)
-    // B. Check Collisions (Asteroid vs Asteroid)
     for (let i = 0; i < asteroids.length; i++) {
       for (let j = i + 1; j < asteroids.length; j++) {
         const a1 = asteroids[i]
@@ -252,25 +257,18 @@ export const useGameEngine = (canvasRef: Ref<HTMLCanvasElement | null>) => {
         const dy = a2.y - a1.y
         const distVal = dist(a1.x, a1.y, a2.x, a2.y)
 
-        // Check if touching
         if (distVal < a1.radius + a2.radius) {
 
-          // 1. Calculate Mass (Area) & Inverse Mass
           const m1 = Math.PI * (a1.radius ** 2)
           const m2 = Math.PI * (a2.radius ** 2)
           const invM1 = 1 / m1
           const invM2 = 1 / m2
 
-          // 2. Calculate Collision Normal (Unit vector pointing from a1 -> a2)
-          // (Fallback to 1,0 if perfectly stacked to avoid NaN)
           const nx = distVal === 0 ? 1 : dx / distVal
           const ny = distVal === 0 ? 0 : dy / distVal
 
-          // 3. Absolute Positional Separation (Fixes Overlap/Sticking)
           const overlap = (a1.radius + a2.radius) - distVal
           if (overlap > 0) {
-            // Push exactly apart based on mass ratio.
-            // We add 1% (1.01) padding to prevent floating-point re-collisions on the very next frame.
             const separationTotal = overlap * 1.01
             const separation1 = (invM1 / (invM1 + invM2)) * separationTotal
             const separation2 = (invM2 / (invM1 + invM2)) * separationTotal
@@ -281,50 +279,84 @@ export const useGameEngine = (canvasRef: Ref<HTMLCanvasElement | null>) => {
             a2.y += ny * separation2
           }
 
-          // 4. True Relative Velocity (Velocity of a2 relative to a1)
           const rvx = a2.vx - a1.vx
           const rvy = a2.vy - a1.vy
-
-          // 5. Velocity along the normal
           const velAlongNormal = rvx * nx + rvy * ny
 
-          // If velocities are separating (> 0), do not apply impulse (Fixes the pass-through bug)
           if (velAlongNormal > 0) continue
 
-          // 6. Calculate Impulse (J)
+          // Impact Energy
+          const reducedMass = (m1 * m2) / (m1 + m2)
+          const impactEnergy = 0.5 * reducedMass * (velAlongNormal ** 2)
+
+          // Evaluate individually against their own specific fragilities
+          const a1Breaks = impactEnergy >= a1.fragility
+          const a2Breaks = impactEnergy >= a2.fragility
+
+          // Calculate impulse regardless (survivors still bounce/get bumped)
           const e = CONST.RESTITUTION
           const jForce = -(1 + e) * velAlongNormal / (invM1 + invM2)
+          const impulseX = jForce * nx
+          const impulseY = jForce * ny
 
-          const impactForce = Math.abs(jForce)
-
-          if (impactForce < CONST.COLLISION_BREAK_THRESHOLD) {
-            // --- ELASTIC BOUNCE ---
-            const impulseX = jForce * nx
-            const impulseY = jForce * ny
-
-            // Apply impulse. Because normal points a1 -> a2:
-            // a1 gets pushed negatively (away), a2 gets pushed positively (away)
+          if (!a1Breaks && !a2Breaks) {
+            // --- BOTH SURVIVE (Standard Bounce) ---
             a1.vx -= impulseX * invM1
             a1.vy -= impulseY * invM1
             a2.vx += impulseX * invM2
             a2.vy += impulseY * invM2
-
           } else {
-            // --- DESTRUCTION / FRAGMENTATION ---
-            a1.dead = true
-            a2.dead = true
+            // --- AT LEAST ONE DESTROYED ---
 
-            const a1Larger = a1.radius > a2.radius
-            const larger = a1Larger ? a1 : a2
-            const smaller = a1Larger ? a2 : a1
-
-            // Math.PI cancels out in the ratio comparison
-            const massRatio = (larger.radius ** 2) / (smaller.radius ** 2)
-
-            // If an asteroid is vastly overpowered (e.g., > 2.5x mass), obliterate the smaller one
-            if (massRatio > 2.5) {
-              smaller.radius = 0
+            // Apply bounce force to whoever survived (if anyone)
+            if (!a1Breaks) {
+              a1.vx -= impulseX * invM1
+              a1.vy -= impulseY * invM1
             }
+            if (!a2Breaks) {
+              a2.vx += impulseX * invM2
+              a2.vy += impulseY * invM2
+            }
+
+            // Inline helper to fragment the broken asteroid(s)
+            const shatterAsteroid = (broken: any, other: any) => {
+              broken.dead = true
+              const massRatio = (other.radius ** 2) / (broken.radius ** 2)
+
+              // If obliterated by something 2.5x larger, leave no fragments
+              if (massRatio > 2.5) {
+                broken.radius = 0
+              } else {
+                let numFragments = 2
+                if (impactEnergy > broken.fragility * 3) numFragments = 4
+                else if (impactEnergy > broken.fragility * 1.5) numFragments = 3
+
+                const baseRadius = broken.radius / Math.sqrt(numFragments)
+
+                for (let f = 0; f < numFragments; f++) {
+                  const angle = Math.random() * Math.PI * 2
+                  const fragRadius = baseRadius * (0.8 + Math.random() * 0.4)
+
+                  if (fragRadius >= 5) {
+                    // CREATE FRAGMENT AND PASS INHERITED FRAGILITY
+                    const frag = createAsteroid(
+                      broken.x + Math.cos(angle) * broken.radius * 0.5,
+                      broken.y + Math.sin(angle) * broken.radius * 0.5,
+                      fragRadius,
+                      broken.fragility // <--- Inherited here!
+                    )
+                    const scatterSpeed = (Math.sqrt(impactEnergy) / broken.radius) * 0.05
+                    frag.vx = broken.vx + (Math.cos(angle) * scatterSpeed)
+                    frag.vy = broken.vy + (Math.sin(angle) * scatterSpeed)
+                    asteroids.push(frag)
+                  }
+                }
+                broken.radius = 0 // Prevent Step D from running default split
+              }
+            }
+
+            if (a1Breaks) shatterAsteroid(a1, a2)
+            if (a2Breaks) shatterAsteroid(a2, a1)
           }
         }
       }
@@ -356,8 +388,9 @@ export const useGameEngine = (canvasRef: Ref<HTMLCanvasElement | null>) => {
     asteroids.forEach(a => {
       if (a.dead) {
         if (a.radius > 20) {
-          nextAsteroids.push(createAsteroid(a.x - a.radius * 0.5, a.y - a.radius * 0.5, a.radius / 2));
-          nextAsteroids.push(createAsteroid(a.x + a.radius * 0.5, a.y + a.radius * 0.5, a.radius / 2));
+          // Pass the parent's fragility to the children!
+          nextAsteroids.push(createAsteroid(a.x - a.radius * 0.5, a.y - a.radius * 0.5, a.radius / 2, a.fragility));
+          nextAsteroids.push(createAsteroid(a.x + a.radius * 0.5, a.y + a.radius * 0.5, a.radius / 2, a.fragility));
         }
       } else {
         nextAsteroids.push(a);
